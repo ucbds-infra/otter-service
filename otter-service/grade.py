@@ -8,9 +8,9 @@ from concurrent.futures import ThreadPoolExecutor, wait
 import os
 import shutil
 
-def pull_from_queue():
-	#Return next notebook?
-	pass
+def pull_from_queue(grading_queue):
+	#Return next notebook
+	return grading_queue.get_nowait()
 
 def grade_assignment(tests_dir, notebook_path, id, image="ucbdsinfra/otter-grader", verbose=False, 
 unfiltered_pdfs=False, tag_filter=False, html_filter=False, reqs=None, scripts=False, no_kill=False):
@@ -73,7 +73,7 @@ unfiltered_pdfs=False, tag_filter=False, html_filter=False, reqs=None, scripts=F
 	print(grade.stderr.decode('utf-8'))
 
 	# Logging stdout/stderr to file
-	log_file = open("log_file_container{}.txt".format(id), "a+")
+	log_file = open("log_file_container_ {}.txt".format(id), "a+")
 	log_file.write(grade.stdout.decode('utf-8'))
 	log_file.write("\n")
 	log_file.write(grade.stderr.decode('utf-8'))
@@ -148,3 +148,4 @@ unfiltered_pdfs=False, tag_filter=False, html_filter=False, reqs=None, scripts=F
 		if command.stderr.decode('utf-8') != '':
 			raise Exception("Error running ", command, " failed with error: ", command.stderr.decode('utf-8'))
   
+	return df
