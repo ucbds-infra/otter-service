@@ -22,31 +22,33 @@ cursor = conn.cursor()
 queries = [
     '''
     CREATE TABLE users (
-        username TEXT PRIMARY KEY,
-        password CHAR(20),
-        api_key CHAR(20),
+        user_id SERIAL PRIMARY KEY,
+        api_key CHAR NOT NULL,
+        username TEXT,
+        password CHAR,
         email TEXT
     )
     ''',
     '''
     CREATE TABLE classes (
         class_id SERIAL PRIMARY KEY,
-        class_name TEXT
+        class_name TEXT NOT NULL
     )
     ''',
     '''
     CREATE TABLE assignments (
         assignment_id SERIAL PRIMARY KEY,
-        class_id INTEGER REFERENCES classes (class_id),
+        class_id INTEGER REFERENCES classes (class_id) NOT NULL,
         assignment_name TEXT
     )
     ''',
     '''
     CREATE TABLE submissions (
         submission_id SERIAL PRIMARY KEY,
-        assignment_id INTEGER REFERENCES assignments(assignment_id),
-        file_path TEXT,
-        timestamp TIMESTAMPTZ,
+        assignment_id INTEGER REFERENCES assignments(assignment_id) NOT NULL,
+        user_id INTEGER REFERENCES users(user_id) NOT NULL,
+        file_path TEXT NOT NULL,
+        timestamp TIMESTAMPTZ NOT NULL,
         score JSONB
     )
     '''
