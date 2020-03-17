@@ -23,10 +23,10 @@ queries = [
     '''
     CREATE TABLE users (
         user_id SERIAL PRIMARY KEY,
-        api_key CHAR NOT NULL,
+        api_key VARCHAR NOT NULL,
         username TEXT,
-        password CHAR,
-        email TEXT
+        password VARCHAR,
+        email TEXT UNIQUE
     )
     ''',
     '''
@@ -48,7 +48,7 @@ queries = [
         assignment_id INTEGER REFERENCES assignments(assignment_id) NOT NULL,
         user_id INTEGER REFERENCES users(user_id) NOT NULL,
         file_path TEXT NOT NULL,
-        timestamp TIMESTAMPTZ NOT NULL,
+        timestamp TIMESTAMP NOT NULL,
         score JSONB
     )
     '''
