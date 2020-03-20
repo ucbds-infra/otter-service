@@ -23,10 +23,11 @@ queries = [
     '''
     CREATE TABLE users (
         user_id SERIAL PRIMARY KEY,
-        api_key VARCHAR NOT NULL,
-        username TEXT,
+        api_keys VARCHAR[] CHECK (cardinality(api_keys) > 0),
+        username TEXT UNIQUE,
         password VARCHAR,
-        email TEXT UNIQUE
+        email TEXT UNIQUE,
+        CONSTRAINT has_username_or_email CHECK (username IS NOT NULL or email IS NOT NULL)
     )
     ''',
     '''
@@ -39,7 +40,7 @@ queries = [
     CREATE TABLE assignments (
         assignment_id SERIAL PRIMARY KEY,
         class_id INTEGER REFERENCES classes (class_id) NOT NULL,
-        assignment_name TEXT
+        assignment_name TEXT NOT NULL
     )
     ''',
     '''

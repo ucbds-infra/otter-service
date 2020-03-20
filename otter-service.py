@@ -34,10 +34,10 @@ class GoogleOAuth2LoginHandler(RequestHandler, GoogleOAuth2Mixin):
             api_key = resp['access_token']
             email = jwt.decode(resp['id_token'], verify=False)['email']
             results = await self.db.query("""
-                                          INSERT INTO users (api_key, email) VALUES (%s, %s)
-                                          ON CONFLICT (email) DO UPDATE SET api_key = EXCLUDED.api_key
+                                          INSERT INTO users (api_keys, email) VALUES (%s, %s)
+                                          ON CONFLICT (email) DO UPDATE SET api_keys = array_append(users.api_keys, %s)
                                           """,
-                                          [api_key, email])
+                                          [[api_key], email, api_key])
             results.free()
 
             self.write(api_key)
@@ -60,13 +60,15 @@ class SubmissionHandler(RequestHandler):
             await self.submit(notebook, api_key)
             self.write('Submission received.')
             self.finish()
-        except:
+        except Exception as e:
+            print(e)
+            self.write_error(500)
             return
 
 
     async def validate(self, notebook, api_key):
         # authenticate user with api_key
-        results = await self.db.query("SELECT user_id FROM users WHERE api_key=%s LIMIT 1", [api_key])
+        results = await self.db.query("SELECT user_id FROM users WHERE %s=ANY(api_keys) LIMIT 1", [api_key])
         user_id = results.as_dict()['user_id'] if len(results) > 0 else None
         results.free()
         assert user_id, 'invalid api key'
