@@ -174,8 +174,10 @@ class Application(tornado.web.Application):
 
 
 if __name__ == "__main__":
+    port = 8888
     tornado.options.parse_command_line()
     server = HTTPServer(Application())
-    server.listen(8888)
+    server.listen(port)
+    print("Listening on port {}".format(port))
     IOLoop.current().spawn_callback(grade)
     IOLoop.current().start()
