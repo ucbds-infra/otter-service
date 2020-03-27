@@ -12,12 +12,12 @@ CLIENT = docker.from_env()
 DOCKERFILE_TEMPLATE = Template("""
 FROM ucbdsinfra/otter-grader
 RUN mkdir /home/notebooks
-ADD {% test_folder_path %} /home{% if test_folder_name != "tests" %}
-RUN mv /home/{% test_folder_name %} /home/tests{% endif %}{% if requirements %}
-ADD {% requirements %} /home
-RUN pip3 install /home/{% requirements_filename %}{% endif %}{% if global_requirements %}
-ADD {% global_requirements %} /home
-RUN pip3 install /home/{% global_requirements_filename %}{% endif %}
+ADD {{ test_folder_path }} /home{% if test_folder_name != "tests" %}
+RUN mv /home/{{ test_folder_name }} /home/tests{% endif %}{% if requirements %}
+ADD {{ requirements }} /home
+RUN pip3 install /home/{{ requirements_filename }}{% endif %}{% if global_requirements %}
+ADD {{ global_requirements }} /home
+RUN pip3 install /home/{{ global_requirements_filename }}{% endif %}
 """)
 
 def main():
@@ -38,9 +38,6 @@ def main():
         last_commit_hash = f.read()
 
     if last_commit_hash == commit_hash_cmd.stdout:
-        # write commit hash
-        with open("/home/.LAST_COMMIT_HASH", "w+") as f:
-            f.write(commit_hash_cmd.stdout)
         
         print("No changes since last pull.")
         return
