@@ -60,10 +60,10 @@ def write_class_info(class_name, conn):
     cursor.close()
     return class_id
 
-def write_assignment_info(class_id, assignment_name, conn):
+def write_assignment_info(assignment_id, class_id, assignment_name, conn):
     cursor = conn.cursor()
-    sql_command = "INSERT INTO assignments (class_id, assignment_name) \
-        VALUES({}, \'{}\')".format(1.0, assignment_name)
+    sql_command = "INSERT INTO assignments (assignment_id, class_id, assignment_name) \
+        VALUES(\'{}\', {}, \'{}\')".format(assignment_id, 1.0, assignment_name)
     cursor.execute(sql_command)
     conn.commit()
     cursor.close()
@@ -110,7 +110,7 @@ def main():
     # assert found_match, "Ids: {} are already in the database".format(duplicate_ids)
     # write to the database
     for name, assignment_id in name_id_pairs:
-        write_assignment_info(class_id, name, conn)
+        write_assignment_info(assignment_id, class_id, name, conn)
     
     # TODO: start building docker images
     for a in assignments:

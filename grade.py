@@ -135,7 +135,7 @@ unfiltered_pdfs=False, tag_filter=False, html_filter=False, reqs=None, scripts=F
 		raise e
 	
 	# check that no commands errored, if they did raise an informative exception
-	all_commands = [launch, copy, tests, grade, csv, csv_cleanup, stop, remove]
+	all_commands = [launch, copy, tests, grade, csv, stop, remove]
 	try:
 		all_commands += [requirements, install]
 	except UnboundLocalError:
