@@ -15,6 +15,7 @@ from tornado.queues import Queue
 from tornado.gen import sleep
 
 nb_queue = Queue()
+NB_DIR = os.environ.get('NOTEBOOK_DIR')
 
 class GoogleOAuth2LoginHandler(RequestHandler, GoogleOAuth2Mixin):
     async def get(self):
@@ -46,7 +47,6 @@ class GoogleOAuth2LoginHandler(RequestHandler, GoogleOAuth2Mixin):
     @property
     def db(self):
         return self.application.db
-
 
 class SubmissionHandler(RequestHandler):
     async def post(self):
