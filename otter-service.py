@@ -14,34 +14,71 @@ from tornado.ioloop import IOLoop
 from tornado.queues import Queue
 from tornado.gen import sleep
 
-nb_queue = Queue()
+user_queue = Queue()
 NB_DIR = os.environ.get('NOTEBOOK_DIR')
+
+class BaseHandler(tornado.web.RequestHandler):
+    def get_current_user(self):
+        return self.get_secure_cookie("user")
+
+class LoginHandler(BaseHandler):
+    def get(self):
+        self.write('<html><body><form action="/login" method="post">'
+                   'Name: <input type="text" name="name">'
+                   '<input type="submit" value="Sign in">'
+                   '</form></body></html>')
+
+    def post(self):
+        self.set_secure_cookie("user", self.get_argument("name"))
+        self.redirect("/submit")
 
 class GoogleOAuth2LoginHandler(RequestHandler, GoogleOAuth2Mixin):
     async def get(self):
-        if not self.get_argument('code', False):
-            return self.authorize_redirect(
-                redirect_uri=self.settings['auth_redirect_uri'],
-                client_id=self.settings['google_oauth']['key'],
-                scope=['email', 'profile'],
-                response_type='code',
-                extra_params={'approval_prompt': 'auto'}
-            )
+        if self.get_argument('code', False):
+            access = await self.get_authenticated_user(
+                redirect_uri='http://localhost:5000/google_auth',
+                code=self.get_argument('code'))
+            user = await self.oauth2_request(
+                "https://www.googleapis.com/oauth2/v1/userinfo",
+                access_token=access["access_token"])
+            # Save the user and access token with
+            # e.g. set_secure_cookie.
         else:
-            resp = await self.get_authenticated_user(
-                redirect_uri=self.settings['auth_redirect_uri'],
-                code=self.get_argument('code')
-            )
-            api_key = resp['access_token']
-            email = jwt.decode(resp['id_token'], verify=False)['email']
-            results = await self.db.query("""
-                                          INSERT INTO users (api_keys, email) VALUES (%s, %s)
-                                          ON CONFLICT (email) DO UPDATE SET api_keys = array_append(users.api_keys, %s)
-                                          """,
-                                          [[api_key], email, api_key])
-            results.free()
+            print("test")
+            await self.authorize_redirect(
+                redirect_uri='http://localhost:5000/google_auth',
+                client_id=self.settings['google_oauth']['key'],
+                scope=['profile', 'email'],
+                response_type='code',
+                extra_params={'approval_prompt': 'auto'})
+    # async def get(self):
+    #     if False:#not self.get_argument('code', False):
+    #         print("not found")
+    #         return self.authorize_redirect(
+    #             redirect_uri=self.settings['auth_redirect_uri'],
+    #             client_id=self.settings['google_oauth']['key'],
+    #             client_secret=self.settings['google_oauth']['secret'],
+    #             scope=['email', 'profile'],
+    #             response_type='code',
+    #             extra_params={'approval_prompt': 'auto'}
+    #         )
+    #     else:
+    #         print("found")
+    #         resp = await self.get_authenticated_user(
+    #             redirect_uri=self.settings['auth_redirect_uri'],
+    #             code="world"#self.get_argument('code')
+    #         )
+    #         api_key = resp['access_token']
+    #         email = jwt.decode(resp['id_token'], verify=False)['email']
+    #         results = await self.db.query("""
+    #                                       INSERT INTO users (api_keys, email) VALUES (%s, %s)
+    #                                       ON CONFLICT (email) 
+    #                                       DO UPDATE SET api_keys = array_append(users.api_keys, %s)
+    #                                       """,
+    #                                       [[api_key], email, api_key])
+    #         results.free()
 
-            self.render("templates/api_key.html", key=api_key)
+    #         self.render("templates/api_key.html", key=api_key)
 
     @property
     def db(self):
@@ -133,7 +170,7 @@ class SubmissionHandler(RequestHandler):
         results.free()
 
         # queue user for grading
-        await nb_queue.put(user_id)
+        await user_queue.put(user_id)
         print('queued user {}'.format(user_id))
 
         self.write('Submission {} received.'.format(submission_id))
@@ -150,30 +187,58 @@ class SubmissionHandler(RequestHandler):
 
 
 async def grade():
-    async for nb in nb_queue:
-        print('Grading', nb)
+    async for user in user_queue:
+        print('Grading user {}'.format(user))
         await sleep(2)
-        nb_queue.task_done()
+        user_queue.task_done()  
+    # async for nb in nb_queue:
+    #     print('Grading', nb)
+    #     await sleep(2)
+    #     nb_queue.task_done()
 
 
 class Application(tornado.web.Application):
-    def __init__(self):
-        handlers = [
-            (r"/submit", SubmissionHandler),
-            (r"/google_auth", GoogleOAuth2LoginHandler)
-        ]
-        with open("conf.yml") as f:
-            config = yaml.safe_load(f)
-        settings = dict(
-            google_oauth={
-                'key': config['google_auth_key'],
-                'secret': config['google_auth_secret'],
-            },
-            notebook_dir = config['notebook_dir'],
-            auth_redirect_uri = config['auth_redirect_uri']
-        )
-        tornado.web.Application.__init__(self, handlers, **settings)
+    def __init__(self, google_auth=True):
+        if google_auth:
+            # TODO: Add config file
+            # with open("conf.yml") as f:
+            #     config = yaml.safe_load(f)
+            config = {
+                "google_auth_key" : "hello",
+                "google_auth_secret" : "world",
+                "notebook_dir" : "./submissions",
+                "auth_redirect_uri" : "http://localhost:5000/google_auth",
+            }
+            settings = dict(
+                google_oauth={
+                    'key': config['google_auth_key'],
+                    'secret': config['google_auth_secret'],
+                },
+                notebook_dir = config['notebook_dir'],
+                auth_redirect_uri = config['auth_redirect_uri']
+            )
+            handlers = [
+                (r"/submit", SubmissionHandler),
+                (r"/google_auth", GoogleOAuth2LoginHandler)
+            ]
+            tornado.web.Application.__init__(self, handlers, **settings)
+        else:
+            # TODO: add personal auth
+            handlers = [
+                (r"/submit", SubmissionHandler),
+                (r"/personal_auth", LoginHandler)
+            ]
+            tornado.web.Application.__init__(self, handlers)
+        
+        
         # Initialize database session
+        # TODO: Remove hardcoded config
+        config = {
+            "db_host" : "localhost",
+            "db_port" : "5432",
+            "db_user" : "otterservice",
+            "db_pass" : "mypass"
+        }
         self.db = queries.TornadoSession(queries.uri(
             host=config['db_host'],
             port=config['db_port'],
@@ -184,10 +249,13 @@ class Application(tornado.web.Application):
 
 
 if __name__ == "__main__":
-    port = 8888
+    port = 5000
     tornado.options.parse_command_line()
     server = HTTPServer(Application())
     server.listen(port)
     print("Listening on port {}".format(port))
     IOLoop.current().spawn_callback(grade)
     IOLoop.current().start()
+
+
+

@@ -1,0 +1,9 @@
+course: Data 8x Berkeley
+assignments:
+    - name: Lab 2
+      assignment_id: lab02
+      points: 10
+      has_threshold: false
+      threshold_value: 8
+      tests_path: ./tests
+      has_requirements: false
