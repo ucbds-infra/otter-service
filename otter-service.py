@@ -41,8 +41,7 @@ class GoogleOAuth2LoginHandler(RequestHandler, GoogleOAuth2Mixin):
                                           [[api_key], email, api_key])
             results.free()
 
-            self.write(api_key)
-            self.finish()
+            self.render("templates/api_key.html", key=api_key)
 
     @property
     def db(self):
