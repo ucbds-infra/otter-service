@@ -35,10 +35,10 @@ class GoogleOAuth2LoginHandler(RequestHandler, GoogleOAuth2Mixin):
             api_key = resp['access_token']
             email = jwt.decode(resp['id_token'], verify=False)['email']
             results = await self.db.query("""
-                                          INSERT INTO users (api_key, email) VALUES (%s, %s)
-                                          ON CONFLICT (email) DO UPDATE SET api_key = EXCLUDED.api_key
+                                          INSERT INTO users (api_keys, email) VALUES (%s, %s)
+                                          ON CONFLICT (email) DO UPDATE SET api_keys = array_append(users.api_keys, %s)
                                           """,
-                                          [api_key, email])
+                                          [[api_key], email, api_key])
             results.free()
 
             self.write(api_key)
@@ -50,29 +50,30 @@ class GoogleOAuth2LoginHandler(RequestHandler, GoogleOAuth2Mixin):
 
 class SubmissionHandler(RequestHandler):
     async def post(self):
-        request = tornado.escape.json_decode(self.request.body)
-        assert 'nb' in request.keys()
-        assert 'api_key' in request.keys()
-        notebook = request['nb']
-        api_key = request['api_key']
-
         try:
+            request = tornado.escape.json_decode(self.request.body)
+            assert 'nb' in request.keys(), 'submission contains no notebook'
+            assert 'api_key' in request.keys(), 'missing api key'
+
+            notebook = request['nb']
+            api_key = request['api_key']
+            
             await self.submit(notebook, api_key)
-            self.write('Submission received.')
-            self.finish()
-        except:
-            return
+        except Exception as e:
+            print(e)
+        self.finish()
+
 
 
     async def validate(self, notebook, api_key):
         # authenticate user with api_key
-        results = await self.db.query("SELECT user_id FROM users WHERE api_key=%s LIMIT 1", [api_key])
+        results = await self.db.query("SELECT user_id FROM users WHERE %s=ANY(api_keys) LIMIT 1", [api_key])
         user_id = results.as_dict()['user_id'] if len(results) > 0 else None
         results.free()
         assert user_id, 'invalid api key'
 
         # rate limit one submission every 2 minutes
-        results = await self.db.query("SELECT timestamp FROM submissions WHERE user_id=%s ORDER BY timestamp DESC LIMIT 1", [2])
+        results = await self.db.query("SELECT timestamp FROM submissions WHERE user_id=%s ORDER BY timestamp DESC LIMIT 1", [user_id])
         last_submitted = results.as_dict()['timestamp'] if len(results) > 0 else None
         results.free()
 
@@ -85,11 +86,12 @@ class SubmissionHandler(RequestHandler):
 
 
         # check valid Jupyter notebook
-        assert all(key in notebook for key in ['metadata', 'nbformat', 'nbformat_minor', 'cells']), 'invalid notebook'
+        assert all(key in notebook for key in ['metadata', 'nbformat', 'nbformat_minor', 'cells']), 'invalid Jupyter notebook'
+        assert 'assignment_id' in notebook['metadata'], 'missing required metadata attribute: assignment_id'
         assignment_id = notebook['metadata']['assignment_id']
         
         results = await self.db.query("SELECT * FROM assignments WHERE assignment_id=%s LIMIT 1", [assignment_id])
-        assert results, 'assignment_id {} not found'.format(assignment_id)
+        assert results, 'assignment_id {} not found on server'.format(assignment_id)
         assignment = results.as_dict()
         results.free()
 
@@ -97,7 +99,16 @@ class SubmissionHandler(RequestHandler):
 
 
     async def submit(self, notebook, api_key):
-        user_id, class_id, assignment_id, assignment_name = await self.validate(notebook, api_key)
+        try:
+            user_id, class_id, assignment_id, assignment_name = await self.validate(notebook, api_key)
+        except TypeError:
+            print('failed validation')
+            return
+        except AssertionError as e:
+            print(e)
+            self.write_error(400, message=e)
+            return
+
 
         # fetch next submission id
         results = await self.db.query("SELECT nextval(pg_get_serial_sequence('submissions', 'submission_id')) as id")
@@ -123,9 +134,10 @@ class SubmissionHandler(RequestHandler):
         results.free()
 
         # queue user for grading
-        # TODO: don't queue if user already queued
         await nb_queue.put(user_id)
         print('queued user {}'.format(user_id))
+
+        self.write('Submission {} received.'.format(submission_id))
 
     @property
     def db(self):
@@ -133,10 +145,9 @@ class SubmissionHandler(RequestHandler):
 
     def write_error(self, status_code, **kwargs):
         if 'message' in kwargs:
-            self.write(kwargs['message'])
+            self.write('Submission failed: {}'.format(kwargs['message']))
         else:
             self.write('Submission failed.')
-        self.finish()
 
 
 async def grade():
