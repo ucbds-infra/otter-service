@@ -204,6 +204,7 @@ async def grade():
         print('Grading user {}'.format(user))
         df = grade_assignment("./lab02/tests", "./lab02/lab02.ipynb", "tmp", "a69eb952c9bd")
         print(df)
+        # TODO: insertion into db
         user_queue.task_done()  
     # async for nb in nb_queue:
     #     print('Grading', nb)

@@ -129,7 +129,7 @@ def main():
         with open("DOCKERFILE", "w+") as f:
             f.write(str(dockerfile))
 
-        # Build 
+        # Build the docker image
         build_out = subprocess.check_output(["docker", "build", "-f", "DOCKERFILE", "."])
         image_id = build_out.decode("utf-8").split(" ")[-1]
 
